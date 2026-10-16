@@ -22,6 +22,18 @@ def admin_required(view):
     return wrapper
 
 
+def student_required(view):
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        student = Student.objects.filter(username=request.session.get('student_username')).first()
+        if not student:
+            messages.error(request, "Please log in to continue.")
+            return redirect('student-login')
+        request.student = student
+        return view(request, *args, **kwargs)
+    return wrapper
+
+
 
 def index(request):
     return render(request, 'index.html')
@@ -284,53 +296,60 @@ def edit_student(request, student_id):
 
     return render(request, 'edit_student.html', {'student': student})
 
+@student_required
 def student_dashboard(request):
     # Fetch all available books
     books = Book.objects.all()
 
     return render(request, 'student_dashboard.html', {'books': books})
 
+@student_required
 def borrow_book(request, book_id):
-    # Get the book instance
     book = get_object_or_404(Book, id=book_id)
 
     if request.method == 'POST':
-        student_name = request.POST.get('student_name')  # Get student name from the form
-        number_of_days = int(request.POST.get('number_of_days', 0))
-        return_date = date.today() + timedelta(days=number_of_days)
-
-        # Find the student instance
         try:
-            student = Student.objects.get(full_name=student_name)
-        except Student.DoesNotExist:
-            messages.error(request, "Student not found. Please ensure your name is correct.")
+            number_of_days = int(request.POST.get('number_of_days', 0))
+        except ValueError:
+            number_of_days = 0
+        if not 1 <= number_of_days <= 30:
+            messages.error(request, "Choose between 1 and 30 days.")
             return redirect('borrow-book', book_id=book_id)
 
-        # Save the borrowing details
+        if Borrow.objects.filter(student=request.student, book=book, returned=False).exists():
+            messages.error(request, f"You already have '{book.title}'. Return it before borrowing it again.")
+            return redirect('student-borrowed-books')
+
         Borrow.objects.create(
-            student=student,
+            student=request.student,
             book=book,
             start_date=date.today(),
-            return_date=return_date,
+            return_date=date.today() + timedelta(days=number_of_days),
         )
-        messages.success(request, f"'{book.title}' successfully borrowed by {student_name}.")
-        return redirect('student-dashboard')  # Redirect after borrowing the book
+        messages.success(request, f"You borrowed '{book.title}'.")
+        return redirect('student-borrowed-books')
 
     return render(request, 'borrow_book.html', {'book': book})
 
-def student_borrowed_books(request, student_id):
-    student = get_object_or_404(Student, id=student_id)
-    books = Book.objects.all()
+@student_required
+def student_borrowed_books(request):
+    student = request.student
 
     if request.method == "POST":
-        borrow_id = request.POST.get('borrow_id')
-        borrow_instance = get_object_or_404(Borrow, id=borrow_id, student=student)
-        borrow_instance.delete()
-        messages.success(request, "Book successfully returned.")
-        return redirect('student-borrowed-books', student_id=student_id)
+        borrow = get_object_or_404(Borrow, id=request.POST.get('borrow_id'), student=student, returned=False)
+        borrow.returned = True
+        borrow.save()
+        messages.success(request, f"'{borrow.book.title}' returned.")
+        return redirect('student-borrowed-books')
 
-    return render(request, 'student_borrowed_books.html', {'borrowed_books': books, 'student': student})
+    borrowed_books = Borrow.objects.filter(student=student, returned=False).select_related('book')
+    return render(request, 'student_borrowed_books.html', {'borrowed_books': borrowed_books, 'student': student})
 
+def student_logout(request):
+    request.session.flush()
+    return redirect('student-login')
+
+@student_required
 def student_profile(request):
     student_username = request.session.get("student_username")  # Assuming the username is stored in the session
 

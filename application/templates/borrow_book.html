@@ -4,15 +4,14 @@
 <div class="container ">
     <div class="card " style="max-width: 710px;">
         <h2>Borrow "{{ book.title }}"</h2>
+    {% for message in messages %}
+    <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %}">{{ message }}</div>
+    {% endfor %}
     <form method="POST">
         {% csrf_token %}
         <div class="mb-3">
-            <label for="student_name" class="form-label">Your Full Name</label>
-            <input type="text" class="form-control" id="student_name" name="student_name" required>
-        </div>
-        <div class="mb-3">
             <label for="number_of_days" class="form-label">Number of Days</label>
-            <input type="number" class="form-control" id="number_of_days" name="number_of_days" min="1" required>
+            <input type="number" class="form-control" id="number_of_days" name="number_of_days" min="1" max="30" required>
         </div>
         <div class="mb-3">
             <label for="return_date" class="form-label">Return Date</label>

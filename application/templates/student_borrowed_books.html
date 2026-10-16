@@ -3,6 +3,9 @@
 {% block content %}
 <div class="container mt-5">
     <h2>{{ student.full_name }}'s Borrowed Books</h2>
+    {% for message in messages %}
+    <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %}">{{ message }}</div>
+    {% endfor %}
     {% if borrowed_books %}
     <table class="table table-striped">
         <thead>
