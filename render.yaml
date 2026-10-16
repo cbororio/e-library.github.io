@@ -1,0 +1,24 @@
+databases:
+  - name: e-library-db
+    plan: free
+    databaseName: e_library
+    user: e_library
+
+services:
+  - type: web
+    name: e-library
+    runtime: python
+    plan: free
+    buildCommand: ./build.sh
+    startCommand: gunicorn library.wsgi:application
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: e-library-db
+          property: connectionString

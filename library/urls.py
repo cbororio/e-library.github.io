@@ -15,7 +15,9 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.conf import settings
+from django.urls import path, re_path
+from django.views.static import serve
 from application import views
 from application.views import student_profile
 
@@ -42,4 +44,8 @@ urlpatterns = [
     path('admin/borrowed-books/', views.admin_borrowed_books, name='admin-borrowed-books'),
     path('return/<int:borrow_id>/', views.return_book, name='return-book'),
 
+]
+
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
 ]

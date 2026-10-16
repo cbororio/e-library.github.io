@@ -9,6 +9,18 @@ from django.contrib.auth.hashers import check_password
 from datetime import date, timedelta
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
+from functools import wraps
+
+
+def admin_required(view):
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        if not request.session.get('admin_username'):
+            messages.error(request, "Please log in as an admin.")
+            return redirect('admin-login')
+        return view(request, *args, **kwargs)
+    return wrapper
+
 
 
 def index(request):
@@ -22,6 +34,7 @@ def admin_login(request):
 def student_login(request):
     return render(request, 'student_login.html')
 
+@admin_required
 def admin_dashboard(request):
 # If user is an admin, proceed to gather dashboard data
     total_books = Book.objects.count()
@@ -98,6 +111,9 @@ def student_login(request):
 
 
 def admin_signup(request):
+    if Admin.objects.exists() and not request.session.get('admin_username'):
+        messages.error(request, "Admin sign-up is closed. Ask an existing admin to create your account.")
+        return redirect('admin-login')
     if request.method == "POST":
         username = request.POST['username']
         email = request.POST['email']
@@ -169,6 +185,7 @@ def contact(request):
 
     return render(request, 'contact.html')
 
+@admin_required
 def add_book(request):
     if request.method == 'POST':
         title = request.POST.get('title')
@@ -196,11 +213,13 @@ def add_book(request):
 
     return render(request, 'add_books.html')
 
+@admin_required
 def manage_books(request):
     # Fetch all books from the database
     books = Book.objects.all()
     return render(request, 'manage_books.html', {'books': books})
 
+@admin_required
 def update_book(request, book_id):
     book = get_object_or_404(Book, id=book_id)
     if request.method == 'POST':
@@ -220,24 +239,28 @@ def update_book(request, book_id):
         return redirect('manage-books')
     return render(request, 'update_book.html', {'book': book})
 
+@admin_required
 def delete_book(request, book_id):
     book = get_object_or_404(Book, id=book_id)
     book.delete()
     messages.success(request, 'Book deleted successfully!')
     return redirect('manage-books')
 
+@admin_required
 def admin_messages(request):
     # Fetch all messages from the application_contact table
     messages = Contact.objects.all()
 
     return render(request, 'admin_messages.html', {'messages': messages})
 
+@admin_required
 def admin_students(request):
     # Fetch all students from the application_student table
     students = Student.objects.all()
 
     return render(request, 'admin_students.html', {'students': students})
 
+@admin_required
 def edit_student(request, student_id):
     try:
         student = Student.objects.get(pk=student_id)
@@ -345,6 +368,7 @@ def student_profile(request):
     return render(request, "student_profile.html", context)
 
 
+@admin_required
 def admin_borrowed_books(request):
     borrowed_books = Borrow.objects.select_related('student', 'book').all()
 
@@ -353,6 +377,7 @@ def admin_borrowed_books(request):
     })
 
 
+@admin_required
 def return_book(request, borrow_id):
     if request.method == "POST":
         borrow = get_object_or_404(Borrow, id=borrow_id)
