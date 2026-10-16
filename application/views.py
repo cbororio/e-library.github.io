@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from .models import Student, Contact, Book, Admin, Borrow
@@ -11,6 +12,9 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
 from functools import wraps
 
+from django.db import transaction
+from django.db.models import F
+
 
 def admin_required(view):
     @wraps(view)
@@ -20,6 +24,17 @@ def admin_required(view):
             return redirect('admin-login')
         return view(request, *args, **kwargs)
     return wrapper
+
+
+def mark_returned(borrow_id, **filters):
+    with transaction.atomic():
+        borrow = Borrow.objects.select_for_update().filter(id=borrow_id, returned=False, **filters).first()
+        if not borrow:
+            return None
+        borrow.returned = True
+        borrow.save()
+        Book.objects.filter(id=borrow.book_id).update(available_copies=F('available_copies') + 1)
+    return borrow
 
 
 def student_required(view):
@@ -320,12 +335,17 @@ def borrow_book(request, book_id):
             messages.error(request, f"You already have '{book.title}'. Return it before borrowing it again.")
             return redirect('student-borrowed-books')
 
-        Borrow.objects.create(
-            student=request.student,
-            book=book,
-            start_date=date.today(),
-            return_date=date.today() + timedelta(days=number_of_days),
-        )
+        with transaction.atomic():
+            taken = Book.objects.filter(id=book.id, available_copies__gt=0).update(available_copies=F('available_copies') - 1)
+            if not taken:
+                messages.error(request, f"Sorry, no copies of '{book.title}' are available right now.")
+                return redirect('student-dashboard')
+            Borrow.objects.create(
+                student=request.student,
+                book=book,
+                start_date=date.today(),
+                return_date=date.today() + timedelta(days=number_of_days),
+            )
         messages.success(request, f"You borrowed '{book.title}'.")
         return redirect('student-borrowed-books')
 
@@ -336,9 +356,9 @@ def student_borrowed_books(request):
     student = request.student
 
     if request.method == "POST":
-        borrow = get_object_or_404(Borrow, id=request.POST.get('borrow_id'), student=student, returned=False)
-        borrow.returned = True
-        borrow.save()
+        borrow = mark_returned(request.POST.get('borrow_id'), student=student)
+        if not borrow:
+            raise Http404
         messages.success(request, f"'{borrow.book.title}' returned.")
         return redirect('student-borrowed-books')
 
@@ -399,8 +419,7 @@ def admin_borrowed_books(request):
 @admin_required
 def return_book(request, borrow_id):
     if request.method == "POST":
-        borrow = get_object_or_404(Borrow, id=borrow_id)
-        borrow.returned = True  # Mark the book as returned
-        borrow.save()
-        messages.success(request, f"{borrow.book.title} marked as returned.")
+        borrow = mark_returned(borrow_id)
+        if borrow:
+            messages.success(request, f"{borrow.book.title} marked as returned.")
     return redirect("admin-borrowed-books")

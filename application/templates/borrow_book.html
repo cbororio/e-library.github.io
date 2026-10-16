@@ -4,6 +4,7 @@
 <div class="container ">
     <div class="card " style="max-width: 710px;">
         <h2>Borrow "{{ book.title }}"</h2>
+        <p>{{ book.available_copies }} cop{{ book.available_copies|pluralize:"y,ies" }} available</p>
     {% for message in messages %}
     <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %}">{{ message }}</div>
     {% endfor %}

@@ -14,11 +14,16 @@
                 {% if book.cover_image %}
                 <img src="{{ book.cover_image.url }}" alt="{{ book.title }}" style="width: 75px; height: 75px;">
                 {% else %}
-                <img src="/images/defaultbook.png" alt="No Image" style="width: 75px; height: 75px;">
+                <img src="/static/images/default-book.png" alt="No Image" style="width: 75px; height: 75px;">
                 {% endif %}
                 <h4>{{ book.title }}</h4>
                 <p>{{ book.author }}</p>
+                <p>{{ book.available_copies }} available</p>
+                {% if book.available_copies > 0 %}
                 <a href="{% url 'borrow-book' book.id %}" class="btn-borrow">Borrow</a>
+                {% else %}
+                <span class="btn-borrow" style="opacity: 0.5; cursor: not-allowed;">Unavailable</span>
+                {% endif %}
             </div>
             {% empty %}
             <p>No books available.</p>
